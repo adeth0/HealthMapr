@@ -1,0 +1,11 @@
+# This workflow is DISABLED — replaced by deploy.yml (Vite + GitHub Pages)
+# See deploy.yml for the active workflow
+
+name: (disabled - see deploy.yml)
+on:
+  workflow_dispatch:  # only run manually, not on push
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This workflow is disabled. See deploy.yml."

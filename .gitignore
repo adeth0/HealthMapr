@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+
+# IDE
+.DS_Store
+.idea/
+
+# Misc
+*.bundle
+healthmapr.bundle
+vercel.json
+DEPLOY.ps1
+
+# Next.js (migrated to Vite)
+next-env.d.ts
+.next/
+postcss.config.mjs
+eslint.config.mjs
