@@ -70,6 +70,23 @@ const navItems = [
     ),
   },
   {
+    path: '/health-connect',
+    label: 'Health',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path
+          d="M11 18.5S3 13.5 3 8a4 4 0 0 1 8-0.5A4 4 0 0 1 19 8c0 5.5-8 10.5-8 10.5z"
+          stroke={active ? '#FF453A' : 'currentColor'}
+          strokeWidth={active ? 2 : 1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill={active ? 'rgba(255,69,58,0.18)' : 'none'}
+          opacity={active ? 1 : 0.55}
+        />
+      </svg>
+    ),
+  },
+  {
     path: '/profile',
     label: 'Profile',
     icon: (active: boolean) => (
