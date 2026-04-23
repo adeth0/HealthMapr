@@ -6,9 +6,11 @@ import { InsightCard, InsightEmptyState } from '@/components/InsightCard'
 import StatStrip from '@/components/StatStrip'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import AIInsightsCard from '@/components/AIInsightsCard'
+import HealthScoreRing from '@/components/HealthScoreRing'
 import NextActionCard from '@/components/NextActionCard'
 import ProjectionCard from '@/components/ProjectionCard'
 import { generateInsights, computeHealthStats } from '@/lib/engine'
+import { computeHealthScore } from '@/lib/engine/health-score'
 import { getNextAction } from '@/lib/engine/next-action'
 import { getProjections } from '@/lib/engine/projections'
 import { getMetrics, getProfile, hasProfile, seedMockData } from '@/lib/storage'
@@ -16,6 +18,7 @@ import { checkAndNotify } from '@/lib/notifications'
 import type { InsightObject, HealthStats, DailyMetric, UserProfile } from '@/lib/types'
 import type { NextAction } from '@/lib/engine/next-action'
 import type { HealthProjection } from '@/lib/engine/projections'
+import type { ScoreBreakdown } from '@/lib/engine/health-score'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -27,6 +30,7 @@ export default function Dashboard() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [nextAction, setNextAction] = useState<NextAction | null>(null)
   const [projection, setProjection] = useState<HealthProjection | null>(null)
+  const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null)
 
   useEffect(() => {
     seedMockData()
@@ -44,6 +48,7 @@ export default function Dashboard() {
     setUserProfile(profile)
     setNextAction(getNextAction(insights, metrics, profile))
     setProjection(getProjections(metrics, profile))
+    setScoreBreakdown(computeHealthScore(metrics, profile))
     setLoading(false)
     // Fire reminder notification if conditions are met
     checkAndNotify(metrics)
@@ -104,6 +109,13 @@ export default function Dashboard() {
         {/* Stat Strip */}
         {stats && <StatStrip stats={stats} />}
       </div>
+
+      {/* ── Health Score Ring ── */}
+      {scoreBreakdown && (
+        <div className="px-5 mb-6">
+          <HealthScoreRing breakdown={scoreBreakdown} />
+        </div>
+      )}
 
       {/* ── Insights ── */}
       <div className="px-5">
