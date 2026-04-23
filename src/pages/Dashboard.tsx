@@ -6,19 +6,24 @@ import { InsightCard, InsightEmptyState } from '@/components/InsightCard'
 import StatStrip from '@/components/StatStrip'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import AIInsightsCard from '@/components/AIInsightsCard'
+import GoalProgressCard from '@/components/GoalProgressCard'
 import HealthScoreRing from '@/components/HealthScoreRing'
+import MilestoneToast from '@/components/MilestoneToast'
 import NextActionCard from '@/components/NextActionCard'
 import ProjectionCard from '@/components/ProjectionCard'
+import StreakBadge from '@/components/StreakBadge'
 import { generateInsights, computeHealthStats } from '@/lib/engine'
 import { computeHealthScore } from '@/lib/engine/health-score'
 import { getNextAction } from '@/lib/engine/next-action'
 import { getProjections } from '@/lib/engine/projections'
+import { computeStreak } from '@/lib/streak'
 import { getMetrics, getProfile, hasProfile, seedMockData } from '@/lib/storage'
 import { checkAndNotify } from '@/lib/notifications'
 import type { InsightObject, HealthStats, DailyMetric, UserProfile } from '@/lib/types'
 import type { NextAction } from '@/lib/engine/next-action'
 import type { HealthProjection } from '@/lib/engine/projections'
 import type { ScoreBreakdown } from '@/lib/engine/health-score'
+import type { StreakData } from '@/lib/streak'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -31,6 +36,8 @@ export default function Dashboard() {
   const [nextAction, setNextAction] = useState<NextAction | null>(null)
   const [projection, setProjection] = useState<HealthProjection | null>(null)
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null)
+  const [streak, setStreak] = useState<StreakData | null>(null)
+  const [milestone, setMilestone] = useState<number | null>(null)
 
   useEffect(() => {
     seedMockData()
@@ -49,6 +56,9 @@ export default function Dashboard() {
     setNextAction(getNextAction(insights, metrics, profile))
     setProjection(getProjections(metrics, profile))
     setScoreBreakdown(computeHealthScore(metrics, profile))
+    const streakData = computeStreak(metrics)
+    setStreak(streakData)
+    if (streakData.milestoneReached) setMilestone(streakData.milestoneReached)
     setLoading(false)
     // Fire reminder notification if conditions are met
     checkAndNotify(metrics)
@@ -83,12 +93,20 @@ export default function Dashboard() {
         style={{ paddingTop: 'max(24px, calc(var(--safe-top) + 16px))' }}
       >
         <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-[13px] text-white/40 mb-0.5">{today}</p>
-            <h1 className="text-[28px] font-black text-white/95 leading-tight" style={{ letterSpacing: '-0.02em' }}>
-              {greeting},<br />
-              <span className="text-gradient">{profileName || 'there'}</span>
-            </h1>
+          <div className="flex items-start gap-3">
+            <img
+              src="/logo.png"
+              alt="HealthMapr"
+              className="w-11 h-11 rounded-2xl flex-shrink-0 mt-0.5"
+              style={{ boxShadow: '0 2px 16px rgba(10,132,255,0.30)' }}
+            />
+            <div>
+              <p className="text-[13px] text-white/40 mb-0.5">{today}</p>
+              <h1 className="text-[28px] font-black text-white/95 leading-tight" style={{ letterSpacing: '-0.02em' }}>
+                {greeting},<br />
+                <span className="text-gradient">{profileName || 'there'}</span>
+              </h1>
+            </div>
           </div>
           <Link
             to="/profile"
@@ -109,6 +127,13 @@ export default function Dashboard() {
         {/* Stat Strip */}
         {stats && <StatStrip stats={stats} />}
       </div>
+
+      {/* ── Streak ── */}
+      {streak && (
+        <div className="px-5 mb-5">
+          <StreakBadge streak={streak} />
+        </div>
+      )}
 
       {/* ── Health Score Ring ── */}
       {scoreBreakdown && (
@@ -150,6 +175,13 @@ export default function Dashboard() {
       {nextAction && (
         <div className="px-5 mt-6">
           <NextActionCard action={nextAction} />
+        </div>
+      )}
+
+      {/* ── Goal Progress ── */}
+      {userProfile && allMetrics.length > 0 && (
+        <div className="px-5 mt-6">
+          <GoalProgressCard metrics={allMetrics} profile={userProfile} />
         </div>
       )}
 
@@ -202,6 +234,14 @@ export default function Dashboard() {
       </div>
 
       <Nav />
+
+      {/* ── Milestone toast ── */}
+      {milestone && (
+        <MilestoneToast
+          days={milestone}
+          onDismiss={() => setMilestone(null)}
+        />
+      )}
     </div>
   )
 }

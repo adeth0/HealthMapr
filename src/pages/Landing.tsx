@@ -64,14 +64,12 @@ export default function Landing() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #0A84FF, #BF5AF2)' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 11 L5 7 L8 9 L11 4 L14 6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+          <img
+            src="/logo.png"
+            alt="HealthMapr"
+            className="w-9 h-9 rounded-2xl"
+            style={{ boxShadow: '0 2px 12px rgba(10,132,255,0.35)' }}
+          />
           <span className="text-[16px] font-bold text-white/90">HealthMapr</span>
         </div>
 
@@ -86,6 +84,18 @@ export default function Landing() {
 
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
       <section className="relative flex flex-col items-center justify-center text-center px-6 pt-36 pb-24 min-h-dvh">
+        {/* Hero logo */}
+        <div className="mb-8 animate-fade-in" style={{ animationDelay: '0s' }}>
+          <img
+            src="/logo.png"
+            alt="HealthMapr"
+            className="w-24 h-24 rounded-[28px] mx-auto"
+            style={{
+              boxShadow: '0 8px 40px rgba(10,132,255,0.4), 0 0 0 1px rgba(255,255,255,0.12)',
+            }}
+          />
+        </div>
+
         {/* Badge */}
         <div
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 animate-fade-in"
@@ -317,15 +327,12 @@ export default function Landing() {
         className="px-6 py-8 border-t text-center"
         style={{ borderColor: 'rgba(255,255,255,0.06)' }}
       >
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <div
-            className="w-6 h-6 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #0A84FF, #BF5AF2)' }}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M1 8 L3.5 5 L6 7 L8.5 3 L11 5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+        <div className="flex items-center justify-center gap-2.5 mb-3">
+          <img
+            src="/logo.png"
+            alt="HealthMapr"
+            className="w-7 h-7 rounded-xl opacity-70"
+          />
           <span className="text-[14px] font-bold text-white/50">HealthMapr</span>
         </div>
         <p className="text-[12px] text-white/25">
