@@ -1,10 +1,11 @@
-import type { DailyMetric, HealthStats, InsightObject, InsightSeverity, UserProfile } from '@/lib/types'
+import type { DailyMetric, HealthGoal, HealthStats, InsightObject, InsightSeverity, UserProfile } from '@/lib/types'
 import { getTDEEFromProfile, last7Average, prev7Average } from '@/lib/health/calculations'
 import { evaluateActivity } from './rules/activity'
 import { evaluateCalories } from './rules/calories'
 import { evaluateFatigue } from './rules/fatigue'
 import { evaluateSleep } from './rules/sleep'
 import { evaluateWeight } from './rules/weight'
+import { evaluateWorkouts } from './rules/workouts'
 
 const SEVERITY_ORDER: Record<InsightSeverity, number> = {
   critical: 0,
@@ -13,18 +14,65 @@ const SEVERITY_ORDER: Record<InsightSeverity, number> = {
   positive: 3,
 }
 
+// Insight types that each goal should surface first
+const GOAL_PRIORITY: Record<HealthGoal, string[]> = {
+  lose_weight:      ['energy_balance', 'weight_trend', 'workout_fuelling_deficit'],
+  sleep_better:     ['sleep_quality', 'sleep_debt', 'fatigue_risk', 'workout_underrecovery'],
+  move_more:        ['activity', 'workout_streak', 'workout_returning', 'fatigue_risk'],
+  track_everything: [], // no bias — show highest severity across all domains
+}
+
+function goalBoost(insight: InsightObject, goal: HealthGoal | undefined): number {
+  if (!goal) return 0
+  const priorityTypes = GOAL_PRIORITY[goal]
+  // Match on insight.type OR insight.id
+  const match = priorityTypes.some(
+    (p) => insight.type?.includes(p) || insight.id?.includes(p)
+  )
+  return match ? -0.5 : 0 // shift matching insights earlier (lower sort value = higher rank)
+}
+
 export function generateInsights(metrics: DailyMetric[], profile: UserProfile): InsightObject[] {
   if (metrics.length === 0) return []
+
   const candidates: (InsightObject | null)[] = [
     evaluateFatigue(metrics, profile),
     evaluateSleep(metrics),
     evaluateCalories(metrics, profile),
     evaluateActivity(metrics),
     evaluateWeight(metrics, profile),
+    evaluateWorkouts(metrics),
   ]
-  return candidates
-    .filter((i): i is InsightObject => i !== null)
-    .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
+
+  const all = candidates.filter((i): i is InsightObject => i !== null)
+
+  // Sort: severity first, then goal-priority boost, then positives last
+  const sorted = all.sort((a, b) => {
+    const severityDiff =
+      (SEVERITY_ORDER[a.severity] + goalBoost(a, profile.goal)) -
+      (SEVERITY_ORDER[b.severity] + goalBoost(b, profile.goal))
+    return severityDiff
+  })
+
+  // If there are any critical/warning insights, drop excess positives (keep at most 1)
+  const hasUrgent = sorted.some(
+    (i) => i.severity === 'critical' || i.severity === 'warning'
+  )
+  const filtered = hasUrgent
+    ? (() => {
+        let positiveCount = 0
+        return sorted.filter((i) => {
+          if (i.severity === 'positive') {
+            positiveCount++
+            return positiveCount <= 1
+          }
+          return true
+        })
+      })()
+    : sorted
+
+  // Hard cap at 3 insights
+  return filtered.slice(0, 3)
 }
 
 export function computeHealthStats(metrics: DailyMetric[], profile: UserProfile): HealthStats {

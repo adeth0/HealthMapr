@@ -6,10 +6,16 @@ import { InsightCard, InsightEmptyState } from '@/components/InsightCard'
 import StatStrip from '@/components/StatStrip'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import AIInsightsCard from '@/components/AIInsightsCard'
+import NextActionCard from '@/components/NextActionCard'
+import ProjectionCard from '@/components/ProjectionCard'
 import { generateInsights, computeHealthStats } from '@/lib/engine'
+import { getNextAction } from '@/lib/engine/next-action'
+import { getProjections } from '@/lib/engine/projections'
 import { getMetrics, getProfile, hasProfile, seedMockData } from '@/lib/storage'
 import { checkAndNotify } from '@/lib/notifications'
 import type { InsightObject, HealthStats, DailyMetric, UserProfile } from '@/lib/types'
+import type { NextAction } from '@/lib/engine/next-action'
+import type { HealthProjection } from '@/lib/engine/projections'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -19,6 +25,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [allMetrics, setAllMetrics] = useState<DailyMetric[]>([])
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [nextAction, setNextAction] = useState<NextAction | null>(null)
+  const [projection, setProjection] = useState<HealthProjection | null>(null)
 
   useEffect(() => {
     seedMockData()
@@ -28,11 +36,14 @@ export default function Dashboard() {
     }
     const profile = getProfile()!
     const metrics = getMetrics()
+    const insights = generateInsights(metrics, profile)
     setProfileName(profile.name)
-    setInsights(generateInsights(metrics, profile))
+    setInsights(insights)
     setStats(computeHealthStats(metrics, profile))
     setAllMetrics(metrics)
     setUserProfile(profile)
+    setNextAction(getNextAction(insights, metrics, profile))
+    setProjection(getProjections(metrics, profile))
     setLoading(false)
     // Fire reminder notification if conditions are met
     checkAndNotify(metrics)
@@ -122,6 +133,20 @@ export default function Dashboard() {
           <InsightEmptyState />
         )}
       </div>
+
+      {/* ── Next Best Action ── */}
+      {nextAction && (
+        <div className="px-5 mt-6">
+          <NextActionCard action={nextAction} />
+        </div>
+      )}
+
+      {/* ── Projections ── */}
+      {projection && (
+        <div className="px-5 mt-6">
+          <ProjectionCard projection={projection} />
+        </div>
+      )}
 
       {/* ── AI Analysis ── */}
       {userProfile && allMetrics.length > 0 && (
