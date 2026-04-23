@@ -24,7 +24,7 @@ const STEPS = [
   { title: "What's your name?", sub: 'Just your first name is fine' },
   { title: 'Your body metrics', sub: 'Used to calculate your personalised TDEE' },
   { title: 'Activity level', sub: 'Your general week-to-week activity' },
-  { title: 'What's your main goal?', sub: 'We'll tailor your daily insights to this' },
+  { title: "What's your main goal?", sub: "We'll tailor your daily insights to this" },
 ]
 
 // ── Welcome screen shown after completing all steps ───────────────────────────
