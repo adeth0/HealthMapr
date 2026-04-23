@@ -79,3 +79,11 @@ jobs:
             --project-ref aonyvtbsvyrnkwsabmug
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy strava-auth function
+        run: |
+          supabase functions deploy strava-auth \
+            --no-verify-jwt \
+            --project-ref aonyvtbsvyrnkwsabmug
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

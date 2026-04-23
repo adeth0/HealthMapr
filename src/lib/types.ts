@@ -29,16 +29,29 @@ export interface UserProfile {
   updated_at: string
 }
 
+// ── Workout Entry ─────────────────────────────────────────────────────────────
+
+export type WorkoutSource = 'apple_health' | 'strava' | 'google_fit' | 'manual'
+
+export interface WorkoutEntry {
+  type: string           // e.g. "Run", "Cycling", "Swimming", "Strength"
+  duration_min: number   // total duration in minutes
+  calories?: number      // calories burned during workout
+  source: WorkoutSource
+  source_id?: string     // external ID for dedup (e.g. Strava activity ID)
+}
+
 // ── Daily Health Metric ───────────────────────────────────────────────────────
 
 export interface DailyMetric {
   date: string
   calories_in?: number
-  calories_out?: number
+  calories_out?: number  // total active energy burned (all sources)
   steps?: number
   sleep_hours?: number
   weight_kg?: number
   note?: string
+  workouts?: WorkoutEntry[]
 }
 
 // ── Insight Objects ───────────────────────────────────────────────────────────

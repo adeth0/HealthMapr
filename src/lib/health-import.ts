@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import JSZip from 'jszip'
-import type { DailyMetric } from '@/lib/types'
+import type { DailyMetric, WorkoutEntry } from '@/lib/types'
 
 export interface ImportResult {
   metrics: DailyMetric[]
@@ -22,15 +22,42 @@ export interface ImportResult {
 
 // ── Internal accumulator per date ─────────────────────────────────────────────
 
+// Maps Apple Watch HKWorkoutActivityType values to human-readable strings
+const WORKOUT_TYPE_MAP: Record<string, string> = {
+  HKWorkoutActivityTypeRunning: 'Run',
+  HKWorkoutActivityTypeCycling: 'Cycling',
+  HKWorkoutActivityTypeSwimming: 'Swimming',
+  HKWorkoutActivityTypeWalking: 'Walk',
+  HKWorkoutActivityTypeHiking: 'Hike',
+  HKWorkoutActivityTypeTraditionalStrengthTraining: 'Strength',
+  HKWorkoutActivityTypeFunctionalStrengthTraining: 'Strength',
+  HKWorkoutActivityTypeHighIntensityIntervalTraining: 'HIIT',
+  HKWorkoutActivityTypeYoga: 'Yoga',
+  HKWorkoutActivityTypePilates: 'Pilates',
+  HKWorkoutActivityTypeElliptical: 'Elliptical',
+  HKWorkoutActivityTypeRowing: 'Rowing',
+  HKWorkoutActivityTypeSoccer: 'Football',
+  HKWorkoutActivityTypeBasketball: 'Basketball',
+  HKWorkoutActivityTypeTennis: 'Tennis',
+  HKWorkoutActivityTypeMixedCardio: 'Cardio',
+  HKWorkoutActivityTypeOther: 'Workout',
+}
+
+function normaliseWorkoutType(hkType: string): string {
+  return WORKOUT_TYPE_MAP[hkType] ?? hkType.replace('HKWorkoutActivityType', '')
+}
+
 interface DayAccumulator {
   steps: number
   sleepMinutes: number
   calories: number
+  activeCalories: number
   weights: number[]
+  workouts: WorkoutEntry[]
 }
 
 function freshDay(): DayAccumulator {
-  return { steps: 0, sleepMinutes: 0, calories: 0, weights: [] }
+  return { steps: 0, sleepMinutes: 0, calories: 0, activeCalories: 0, weights: [], workouts: [] }
 }
 
 // ── Attribute extraction from a single <Record .../> or <Record ...> tag ──────
@@ -69,7 +96,7 @@ function parseXML(xmlText: string): ImportResult {
 
   const days = new Map<string, DayAccumulator>()
 
-  // Match self-closing <Record ... /> tags (Apple Health format)
+  // ── Parse <Record .../> elements ─────────────────────────────────────────────
   const recordRe = /<Record\s[^>]+\/>/g
   let match: RegExpExecArray | null
   let count = 0
@@ -83,7 +110,7 @@ function parseXML(xmlText: string): ImportResult {
     if (!type || !startDate) continue
 
     const dateStr = toDateStr(startDate)
-    if (dateStr < cutoffStr) continue // outside 90-day window
+    if (dateStr < cutoffStr) continue
 
     if (!days.has(dateStr)) days.set(dateStr, freshDay())
     const day = days.get(dateStr)!
@@ -95,7 +122,6 @@ function parseXML(xmlText: string): ImportResult {
 
     else if (type === 'HKCategoryTypeIdentifierSleepAnalysis') {
       const value = attr(tag, 'value')
-      // Count both InBed and Asleep (Apple Watch uses AsleepCore/AsleepREM/AsleepDeep in newer iOS)
       const isSleep = value && (
         value.includes('Asleep') ||
         value === 'HKCategoryValueSleepAnalysisInBed'
@@ -118,16 +144,72 @@ function parseXML(xmlText: string): ImportResult {
       const unit = attr(tag, 'unit') ?? 'kcal'
       let v = parseFloat(attr(tag, 'value') ?? '0')
       if (isNaN(v) || v === 0) continue
-      if (unit === 'kJ') v = v / 4.184 // kilojoules → kcal
+      if (unit === 'kJ') v = v / 4.184
       day.calories += v
+    }
+
+    else if (type === 'HKQuantityTypeIdentifierActiveEnergyBurned') {
+      const unit = attr(tag, 'unit') ?? 'Cal'
+      let v = parseFloat(attr(tag, 'value') ?? '0')
+      if (isNaN(v) || v === 0) continue
+      if (unit === 'kJ') v = v / 4.184
+      day.activeCalories += v
     }
   }
 
-  if (count === 0) {
-    warnings.push('No <Record> elements found — check the file is export.xml from the Apple Health app.')
+  // ── Parse <Workout .../> elements ─────────────────────────────────────────────
+  // Format: <Workout workoutActivityType="..." duration="32.5" durationUnit="min"
+  //                  totalEnergyBurned="320" totalEnergyBurnedUnit="Cal"
+  //                  startDate="..." endDate="..."/>
+  const workoutRe = /<Workout\s[^>]+\/>/g
+  while ((match = workoutRe.exec(xmlText)) !== null) {
+    const tag = match[0]
+    const activityType = attr(tag, 'workoutActivityType')
+    const startDate = attr(tag, 'startDate')
+    const endDate = attr(tag, 'endDate')
+    if (!activityType || !startDate) continue
+
+    const dateStr = toDateStr(startDate)
+    if (dateStr < cutoffStr) continue
+
+    if (!days.has(dateStr)) days.set(dateStr, freshDay())
+    const day = days.get(dateStr)!
+
+    // Duration — prefer explicit duration attribute; fall back to start/end diff
+    let durationMin = 0
+    const durationAttr = parseFloat(attr(tag, 'duration') ?? '0')
+    const durationUnit = attr(tag, 'durationUnit') ?? 'min'
+    if (!isNaN(durationAttr) && durationAttr > 0) {
+      durationMin = durationUnit === 'min' ? durationAttr : durationAttr / 60
+    } else if (endDate) {
+      durationMin = durationMinutes(startDate, endDate)
+    }
+    if (durationMin < 1) continue // skip sub-minute entries
+
+    // Calories burned
+    let calories: number | undefined
+    const energyVal = parseFloat(attr(tag, 'totalEnergyBurned') ?? '0')
+    const energyUnit = attr(tag, 'totalEnergyBurnedUnit') ?? 'Cal'
+    if (!isNaN(energyVal) && energyVal > 0) {
+      calories = energyUnit === 'kJ' ? Math.round(energyVal / 4.184) : Math.round(energyVal)
+    }
+
+    const workout: WorkoutEntry = {
+      type: normaliseWorkoutType(activityType),
+      duration_min: Math.round(durationMin),
+      source: 'apple_health',
+    }
+    if (calories !== undefined) workout.calories = calories
+
+    day.workouts.push(workout)
+    count++
   }
 
-  // Convert accumulators to DailyMetric[]
+  if (count === 0) {
+    warnings.push('No health records found — check the file is export.xml from the Apple Health app.')
+  }
+
+  // ── Convert accumulators → DailyMetric[] ─────────────────────────────────────
   const metrics: DailyMetric[] = []
 
   for (const [date, d] of days.entries()) {
@@ -136,7 +218,9 @@ function parseXML(xmlText: string): ImportResult {
     if (d.sleepMinutes > 0) m.sleep_hours = Math.round((d.sleepMinutes / 60) * 10) / 10
     if (d.weights.length > 0) m.weight_kg = Math.round((d.weights[d.weights.length - 1]) * 10) / 10
     if (d.calories > 0) m.calories_in = Math.round(d.calories)
-    const hasData = d.steps > 0 || d.sleepMinutes > 0 || d.weights.length > 0 || d.calories > 0
+    if (d.activeCalories > 0) m.calories_out = Math.round(d.activeCalories)
+    if (d.workouts.length > 0) m.workouts = d.workouts
+    const hasData = d.steps > 0 || d.sleepMinutes > 0 || d.weights.length > 0 || d.calories > 0 || d.workouts.length > 0
     if (hasData) metrics.push(m)
   }
 

@@ -5,11 +5,19 @@ import Nav from '@/components/Nav'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { hasProfile, saveMetric, seedMockData } from '@/lib/storage'
 import { importHealthFile } from '@/lib/health-import'
-import { syncFromSupabase, getWebhookUrl, getDeviceWebhookPayloadExample } from '@/lib/supabase-sync'
+import { syncFromSupabase, getWebhookUrl } from '@/lib/supabase-sync'
 import { getDeviceUserId } from '@/lib/storage'
+import {
+  redirectToStrava,
+  handleStravaCallback,
+  syncStravaActivities,
+  isStravaConnected,
+  clearStravaTokens,
+} from '@/lib/strava'
 
 type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 type SyncStatus = 'idle' | 'syncing' | 'done' | 'error'
+type Tab = 'apple' | 'strava' | 'google'
 
 const LAST_SYNC_KEY = 'healthmapr_last_sync'
 
@@ -26,6 +34,7 @@ function timeAgo(isoStr: string): string {
 export default function HealthConnect() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<Tab>('apple')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Import state
@@ -33,11 +42,17 @@ export default function HealthConnect() {
   const [importResult, setImportResult] = useState<{ count: number; warnings: string[] } | null>(null)
   const [importError, setImportError] = useState('')
 
-  // Sync state
+  // Shortcut sync state
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle')
   const [syncResult, setSyncResult] = useState<{ synced: number } | null>(null)
   const [syncError, setSyncError] = useState('')
   const [lastSync, setLastSync] = useState<string | null>(null)
+
+  // Strava state
+  const [stravaConnected, setStravaConnected] = useState(false)
+  const [stravaStatus, setStravaStatus] = useState<SyncStatus>('idle')
+  const [stravaResult, setStravaResult] = useState<{ synced: number } | null>(null)
+  const [stravaError, setStravaError] = useState('')
 
   // Shortcut section
   const [showDeviceId, setShowDeviceId] = useState(false)
@@ -50,6 +65,16 @@ export default function HealthConnect() {
     seedMockData()
     if (!hasProfile()) { navigate('/setup', { replace: true }); return }
     setLastSync(localStorage.getItem(LAST_SYNC_KEY))
+    setStravaConnected(isStravaConnected())
+
+    // Handle Strava OAuth callback (?code=... in URL)
+    if (window.location.search.includes('state=strava_oauth')) {
+      setTab('strava')
+      handleStravaCallback().then((ok) => {
+        if (ok) setStravaConnected(true)
+      })
+    }
+
     setLoading(false)
   }, [navigate])
 
@@ -104,6 +129,23 @@ export default function HealthConnect() {
     setSyncStatus('done')
   }, [])
 
+  // ── Strava sync ──────────────────────────────────────────────────────────────
+
+  const handleStravaSync = useCallback(async () => {
+    setStravaStatus('syncing')
+    setStravaResult(null)
+    setStravaError('')
+    const result = await syncStravaActivities(90)
+    if (result.error) {
+      setStravaError(result.error)
+      setStravaStatus('error')
+      if (result.error.includes('401')) setStravaConnected(false)
+      return
+    }
+    setStravaResult({ synced: result.synced })
+    setStravaStatus('done')
+  }, [])
+
   // ── Copy to clipboard ────────────────────────────────────────────────────
 
   const copyText = useCallback(async (text: string, which: 'url' | 'id') => {
@@ -126,19 +168,46 @@ export default function HealthConnect() {
 
       {/* ── Header ── */}
       <div
-        className="px-5 pb-5"
+        className="px-5 pb-4"
         style={{ paddingTop: 'max(24px, calc(var(--safe-top) + 16px))' }}
       >
         <p className="text-[13px] text-white/35 mb-1">Live data</p>
         <h1 className="text-[28px] font-black text-white/95" style={{ letterSpacing: '-0.02em' }}>
-          Apple Health
+          Connect
         </h1>
-        <p className="text-[13px] text-white/40 mt-1 leading-relaxed">
-          Import your health history or set up automatic daily sync from your iPhone and Apple Watch.
-        </p>
+      </div>
+
+      {/* ── Tab bar ── */}
+      <div className="px-5 mb-5">
+        <div
+          className="flex items-center rounded-2xl p-1 gap-1"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+          {([
+            { id: 'apple', label: '❤️ Apple Health' },
+            { id: 'strava', label: '🟠 Strava', badge: stravaConnected ? '●' : undefined },
+            { id: 'google', label: '🔵 Google Fit' },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-1"
+              style={tab === t.id
+                ? { background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.90)', border: '1px solid rgba(255,255,255,0.12)' }
+                : { color: 'rgba(255,255,255,0.35)' }
+              }
+            >
+              {t.label}
+              {t.badge && <span className="text-[8px] text-[#30D158]">{t.badge}</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="px-5 flex flex-col gap-4">
+
+        {/* ══════════════════ APPLE HEALTH TAB ══════════════════ */}
+        {tab === 'apple' && <>
 
         {/* ── Section 1: XML Import ── */}
         <div className="rounded-3xl p-5 overflow-hidden" style={glass}>
@@ -428,6 +497,160 @@ export default function HealthConnect() {
             Calories in requires a nutrition app (e.g. MyFitnessPal, Cronometer, or Lose It!) connected to Apple Health.
           </p>
         </div>
+
+        </> /* end Apple tab */ }
+
+        {/* ══════════════════ STRAVA TAB ══════════════════ */}
+        {tab === 'strava' && <>
+
+        {/* Connect / status card */}
+        <div className="rounded-3xl p-5 overflow-hidden" style={glass}>
+          <div className="flex items-center gap-3 mb-4">
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: 'rgba(252,76,2,0.15)', border: '1px solid rgba(252,76,2,0.30)' }}
+            >
+              🟠
+            </div>
+            <div>
+              <div className="text-[15px] font-bold text-white/88">Strava</div>
+              <div className="text-[12px]" style={{ color: stravaConnected ? '#30D158' : 'rgba(255,255,255,0.40)' }}>
+                {stravaConnected ? '● Connected' : 'Not connected'}
+              </div>
+            </div>
+            {stravaConnected && (
+              <button
+                onClick={() => { clearStravaTokens(); setStravaConnected(false) }}
+                className="ml-auto text-[11px] text-white/30 hover:text-[#FF453A] transition-colors"
+              >
+                Disconnect
+              </button>
+            )}
+          </div>
+
+          {!stravaConnected ? (
+            <button
+              onClick={redirectToStrava}
+              className="w-full py-4 rounded-2xl text-[14px] font-bold text-white transition-all active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg, #FC4C02, #E34402)', boxShadow: '0 4px 20px rgba(252,76,2,0.35)' }}
+            >
+              Connect Strava →
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleStravaSync}
+                disabled={stravaStatus === 'syncing'}
+                className="w-full py-3.5 rounded-2xl text-[14px] font-bold transition-all active:scale-[0.98]"
+                style={stravaStatus === 'done'
+                  ? { background: 'rgba(48,209,88,0.12)', border: '1px solid rgba(48,209,88,0.25)', color: '#30D158' }
+                  : stravaStatus === 'error'
+                  ? { background: 'rgba(255,69,58,0.10)', border: '1px solid rgba(255,69,58,0.25)', color: '#FF453A' }
+                  : { background: 'linear-gradient(135deg, rgba(252,76,2,0.25), rgba(252,76,2,0.15))', border: '1px solid rgba(252,76,2,0.35)', color: '#FC8C60' }
+                }
+              >
+                {stravaStatus === 'syncing' && '⏳ Syncing activities…'}
+                {stravaStatus === 'done' && stravaResult && `✓ ${stravaResult.synced} days synced`}
+                {stravaStatus === 'error' && '⚠ Sync failed — tap to retry'}
+                {stravaStatus === 'idle' && '↓ Sync last 90 days'}
+              </button>
+              {stravaStatus === 'error' && stravaError && (
+                <p className="text-[11px] text-[#FF453A]">{stravaError}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* What Strava provides */}
+        <div className="rounded-3xl p-5 overflow-hidden" style={glass}>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/35 mb-3">What Strava syncs</div>
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { icon: '🏃', label: 'Runs', src: 'GPS + pace data' },
+              { icon: '🚴', label: 'Rides', src: 'Power, cadence, speed' },
+              { icon: '🏊', label: 'Swims', src: 'Pool + open water' },
+              { icon: '🔥', label: 'Calories burned', src: 'Per workout' },
+            ].map((item) => (
+              <div key={item.label} className="p-3 rounded-2xl"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="text-lg mb-1">{item.icon}</div>
+                <div className="text-[13px] font-bold text-white/75">{item.label}</div>
+                <div className="text-[11px] text-white/30 mt-0.5">{item.src}</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-white/25 mt-3 leading-relaxed">
+            You need a Strava app registered at developers.strava.com. Add <span className="font-mono text-white/40">VITE_STRAVA_CLIENT_ID</span> to your .env and <span className="font-mono text-white/40">STRAVA_CLIENT_ID</span> + <span className="font-mono text-white/40">STRAVA_CLIENT_SECRET</span> as Supabase secrets.
+          </p>
+        </div>
+
+        </> /* end Strava tab */ }
+
+        {/* ══════════════════ GOOGLE FIT TAB ══════════════════ */}
+        {tab === 'google' && <>
+
+        <div className="rounded-3xl p-5 overflow-hidden" style={glass}>
+          <div className="flex items-center gap-3 mb-4">
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: 'rgba(66,133,244,0.15)', border: '1px solid rgba(66,133,244,0.25)' }}
+            >
+              🔵
+            </div>
+            <div>
+              <div className="text-[15px] font-bold text-white/88">Google Fit</div>
+              <div className="text-[12px] text-white/40">Coming soon</div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl p-4 mb-4"
+            style={{ background: 'rgba(66,133,244,0.07)', border: '1px solid rgba(66,133,244,0.15)' }}>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-white/35 mb-2">Integration plan</div>
+            <p className="text-[13px] text-white/50 leading-relaxed">
+              Google Fit uses the same OAuth 2.0 pattern as Strava. Once your Supabase env is set up, it will sync steps, sleep, and calories burned via the Fitness REST API.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {[
+              { step: '1', text: 'Create a project at console.cloud.google.com' },
+              { step: '2', text: 'Enable the Fitness API and create OAuth 2.0 credentials' },
+              { step: '3', text: 'Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET as Supabase secrets' },
+              { step: '4', text: 'Google Fit sync will unlock automatically' },
+            ].map((s) => (
+              <div key={s.step} className="flex items-start gap-3 p-3 rounded-2xl"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="w-6 h-6 rounded-xl flex items-center justify-center flex-shrink-0 text-[12px] font-bold mt-0.5"
+                  style={{ background: 'rgba(66,133,244,0.18)', color: '#4285F4' }}>
+                  {s.step}
+                </div>
+                <span className="text-[13px] text-white/55 leading-relaxed">{s.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* What Google Fit provides */}
+        <div className="rounded-3xl p-5 overflow-hidden" style={glass}>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/35 mb-3">What Google Fit syncs</div>
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { icon: '🏃', label: 'Steps', src: 'Pixel Watch + phone' },
+              { icon: '🛌', label: 'Sleep', src: 'Wear OS devices' },
+              { icon: '🔥', label: 'Calories burned', src: 'Activity data' },
+              { icon: '💪', label: 'Workouts', src: 'All activity types' },
+            ].map((item) => (
+              <div key={item.label} className="p-3 rounded-2xl"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="text-lg mb-1">{item.icon}</div>
+                <div className="text-[13px] font-bold text-white/75">{item.label}</div>
+                <div className="text-[11px] text-white/30 mt-0.5">{item.src}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        </> /* end Google Fit tab */ }
 
       </div>
 

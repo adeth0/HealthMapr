@@ -34,10 +34,38 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   sleep_hours  REAL,
   weight_kg    REAL,
   note         TEXT,
+  -- Workout array: [{type, duration_min, calories, source, source_id}]
+  workouts     JSONB DEFAULT '[]'::jsonb,
+  -- Integration tokens (stored per device, pre-auth)
+  strava_access_token   TEXT,
+  strava_refresh_token  TEXT,
+  strava_token_expires  BIGINT,
   created_at   TIMESTAMPTZ DEFAULT NOW(),
   updated_at   TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(device_id, date)
 );
+
+-- Separate integrations table for OAuth tokens (one row per device per source)
+CREATE TABLE IF NOT EXISTS integrations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id    TEXT NOT NULL REFERENCES profiles(device_id) ON DELETE CASCADE,
+  source       TEXT NOT NULL CHECK (source IN ('strava', 'google_fit')),
+  access_token  TEXT,
+  refresh_token TEXT,
+  token_expires BIGINT,
+  scope         TEXT,
+  athlete_id    TEXT,   -- external user ID for this source
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(device_id, source)
+);
+
+ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "integrations_open" ON integrations FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TRIGGER integrations_updated_at
+  BEFORE UPDATE ON integrations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 
