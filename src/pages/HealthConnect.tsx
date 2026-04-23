@@ -184,10 +184,10 @@ export default function HealthConnect() {
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
         >
           {([
-            { id: 'apple', label: '❤️ Apple Health' },
-            { id: 'strava', label: '🟠 Strava', badge: stravaConnected ? '●' : undefined },
-            { id: 'google', label: '🔵 Google Fit' },
-          ] as const).map((t) => (
+            { id: 'apple' as Tab, label: '❤️ Apple Health', badge: undefined as string | undefined },
+            { id: 'strava' as Tab, label: '🟠 Strava', badge: stravaConnected ? '●' : undefined as string | undefined },
+            { id: 'google' as Tab, label: '🔵 Google Fit', badge: undefined as string | undefined },
+          ]).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
