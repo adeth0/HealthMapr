@@ -18,8 +18,8 @@
 //   }
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// No external serve import needed — Deno.serve() is built-in (Deno 1.35+)
+import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const ALLOWED_ORIGINS = [
   'https://health.kavauralabs.com',
@@ -40,7 +40,7 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   const origin = req.headers.get('origin') ?? ''
 
   if (req.method === 'OPTIONS') {

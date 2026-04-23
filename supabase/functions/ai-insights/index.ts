@@ -9,7 +9,7 @@
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+// No external serve import needed — Deno.serve() is built-in (Deno 1.35+)
 
 const ALLOWED_ORIGINS = [
   'https://health.kavauralabs.com',
@@ -63,7 +63,7 @@ function corsHeaders(origin: string) {
   }
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   const origin = req.headers.get('origin') ?? ''
 
   // Handle CORS preflight
