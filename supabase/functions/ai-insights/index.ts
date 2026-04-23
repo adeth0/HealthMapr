@@ -131,7 +131,7 @@ Return only JSON. No markdown fences.`
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
@@ -139,10 +139,13 @@ Return only JSON. No markdown fences.`
     })
 
     if (!claudeRes.ok) {
-      const err = await claudeRes.text()
-      console.error('Claude API error:', err)
+      const errText = await claudeRes.text()
+      console.error('Claude API error:', claudeRes.status, errText)
+      // Return the actual Claude error so it's visible in the UI for debugging
+      let claudeError = errText
+      try { claudeError = JSON.parse(errText)?.error?.message ?? errText } catch { /* ignore */ }
       return new Response(
-        JSON.stringify({ error: 'AI service error', detail: claudeRes.status }),
+        JSON.stringify({ error: `Claude API ${claudeRes.status}: ${claudeError}` }),
         { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) } }
       )
     }
