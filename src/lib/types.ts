@@ -11,6 +11,8 @@ export type ActivityLevel =
 
 export type BiologicalSex = 'male' | 'female' | 'other'
 
+export type HealthGoal = 'lose_weight' | 'sleep_better' | 'move_more' | 'track_everything'
+
 // ── User Profile ──────────────────────────────────────────────────────────────
 
 export interface UserProfile {
@@ -20,6 +22,9 @@ export interface UserProfile {
   weight_kg: number
   sex: BiologicalSex
   activity_level: ActivityLevel
+  goal?: HealthGoal
+  reminder_enabled?: boolean
+  reminder_time?: string       // HH:MM, e.g. "20:00"
   created_at: string
   updated_at: string
 }

@@ -5,6 +5,7 @@ import Nav from '@/components/Nav'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { clearAllData, getProfile, getMetrics, hasProfile, saveProfile, seedMockData } from '@/lib/storage'
 import { calculateBMR, calculateTDEE } from '@/lib/health/calculations'
+import { getReminderConfig, saveReminderConfig, requestPermission } from '@/lib/notifications'
 import type { ActivityLevel, BiologicalSex, UserProfile } from '@/lib/types'
 
 const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
@@ -32,6 +33,11 @@ export default function Profile() {
   const [eSex, setESex] = useState<BiologicalSex>('male')
   const [eActivity, setEActivity] = useState<ActivityLevel>('moderate')
 
+  // Reminder state
+  const [reminderEnabled, setReminderEnabled] = useState(false)
+  const [reminderTime, setReminderTime] = useState('20:00')
+  const [permissionState, setPermissionState] = useState<NotificationPermission>('default')
+
   useEffect(() => {
     seedMockData()
     if (!hasProfile()) { navigate('/setup', { replace: true }); return }
@@ -44,6 +50,11 @@ export default function Profile() {
     setEWeight(p.weight_kg.toString())
     setESex(p.sex)
     setEActivity(p.activity_level)
+    // Load reminder config
+    const reminder = getReminderConfig()
+    setReminderEnabled(reminder.enabled)
+    setReminderTime(reminder.time)
+    if ('Notification' in window) setPermissionState(Notification.permission)
     setLoading(false)
   }, [navigate])
 
@@ -71,6 +82,22 @@ export default function Profile() {
   function handleReset() {
     clearAllData()
     navigate('/', { replace: true })
+  }
+
+  async function handleReminderToggle() {
+    const next = !reminderEnabled
+    if (next && permissionState !== 'granted') {
+      const granted = await requestPermission()
+      if (!granted) return
+      setPermissionState('granted')
+    }
+    setReminderEnabled(next)
+    saveReminderConfig({ enabled: next, time: reminderTime })
+  }
+
+  function handleReminderTimeChange(t: string) {
+    setReminderTime(t)
+    saveReminderConfig({ enabled: reminderEnabled, time: t })
   }
 
   const inputClass = "w-full rounded-xl px-3 py-2.5 text-[14px] font-semibold text-white/80 bg-transparent focus:outline-none"
@@ -248,6 +275,60 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      {/* ── Daily Reminder ── */}
+      <div className="px-5 mb-5">
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <h3 className="text-[15px] font-bold text-white/85">Daily reminder</h3>
+              <p className="text-[12px] text-white/40 mt-0.5">
+                Get a notification when you haven't logged yet
+              </p>
+            </div>
+            {/* Toggle */}
+            <button
+              onClick={handleReminderToggle}
+              className="relative w-12 h-7 rounded-full transition-all duration-300 flex-shrink-0"
+              style={reminderEnabled
+                ? { background: '#30D158' }
+                : { background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.16)' }
+              }
+            >
+              <span
+                className="absolute top-[3px] w-[22px] h-[22px] rounded-full bg-white shadow-sm transition-all duration-300"
+                style={{ left: reminderEnabled ? 'calc(100% - 25px)' : '3px' }}
+              />
+            </button>
+          </div>
+
+          {reminderEnabled && (
+            <div className="mt-4 animate-fade-in">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-white/35 mb-1.5 block">
+                Remind me at
+              </label>
+              <div
+                className="flex items-center gap-2 px-4 py-3 rounded-2xl"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+              >
+                <span className="text-lg">🔔</span>
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => handleReminderTimeChange(e.target.value)}
+                  className="flex-1 text-[16px] font-bold text-white/80 bg-transparent border-none outline-none"
+                  style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              {permissionState === 'denied' && (
+                <p className="text-[11px] text-[#FF453A] mt-2">
+                  Notifications are blocked. Enable them in your browser settings.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Danger zone ── */}
       <div className="px-5">

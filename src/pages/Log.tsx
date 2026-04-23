@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import GradientMesh from '@/components/GradientMesh'
 import Nav from '@/components/Nav'
-import { getMetricByDate, saveMetric } from '@/lib/storage'
+import { getMetricByDate, getMetrics, saveMetric } from '@/lib/storage'
 import type { DailyMetric } from '@/lib/types'
 
 interface FieldConfig {
@@ -84,6 +84,16 @@ export default function Log() {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showFirstLogBanner, setShowFirstLogBanner] = useState(false)
+  const checkedFirst = useRef(false)
+
+  // Check on first mount only — show banner if user has never logged anything
+  useEffect(() => {
+    if (!checkedFirst.current) {
+      checkedFirst.current = true
+      if (getMetrics().length === 0) setShowFirstLogBanner(true)
+    }
+  }, [])
 
   useEffect(() => {
     const existing = getMetricByDate(dateStr)
@@ -107,6 +117,7 @@ export default function Log() {
   }
 
   function handleSave() {
+    setShowFirstLogBanner(false)
     setSaving(true)
     const metric: DailyMetric = { date: dateStr }
     const w = parseFloat(values.weight_kg ?? '')
@@ -198,6 +209,30 @@ export default function Log() {
           ›
         </button>
       </div>
+
+      {/* ── First-log banner ── */}
+      {showFirstLogBanner && (
+        <div className="px-5 mb-4 animate-slide-up">
+          <div
+            className="rounded-2xl p-4 flex items-start gap-3"
+            style={{ background: 'rgba(48,209,88,0.08)', border: '1px solid rgba(48,209,88,0.22)' }}
+          >
+            <span className="text-xl flex-shrink-0 mt-0.5">🎉</span>
+            <div>
+              <div className="text-[14px] font-bold text-[#30D158] mb-0.5">Your first log!</div>
+              <div className="text-[12px] text-white/50 leading-relaxed">
+                Fill in what you can — even one field is enough to start building your health picture. It only takes 30 seconds.
+              </div>
+            </div>
+            <button
+              onClick={() => setShowFirstLogBanner(false)}
+              className="text-white/25 hover:text-white/50 transition-colors flex-shrink-0 text-lg leading-none mt-0.5"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Fields ── */}
       <div className="px-5 flex flex-col gap-3">

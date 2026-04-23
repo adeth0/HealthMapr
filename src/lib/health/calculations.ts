@@ -91,3 +91,21 @@ export function signedNumber(n: number, unit = ''): string {
   const sign = n >= 0 ? '+' : '−'
   return `${sign}${Math.abs(n).toFixed(1)}${unit}`
 }
+
+// ── Trend ─────────────────────────────────────────────────────────────────────
+// Compares mean of first half vs second half of an array.
+// Returns 'up' / 'down' / 'flat' with a ±5% threshold.
+
+export function computeTrend(values: number[]): 'up' | 'down' | 'flat' {
+  if (values.length < 4) return 'flat'
+  const mid = Math.floor(values.length / 2)
+  const first = values.slice(0, mid)
+  const second = values.slice(mid)
+  const avgFirst = first.reduce((s, v) => s + v, 0) / first.length
+  const avgSecond = second.reduce((s, v) => s + v, 0) / second.length
+  if (avgFirst === 0) return 'flat'
+  const pct = (avgSecond - avgFirst) / avgFirst
+  if (pct > 0.05) return 'up'
+  if (pct < -0.05) return 'down'
+  return 'flat'
+}

@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import AIInsightsCard from '@/components/AIInsightsCard'
 import { generateInsights, computeHealthStats } from '@/lib/engine'
 import { getMetrics, getProfile, hasProfile, seedMockData } from '@/lib/storage'
+import { checkAndNotify } from '@/lib/notifications'
 import type { InsightObject, HealthStats, DailyMetric, UserProfile } from '@/lib/types'
 
 export default function Dashboard() {
@@ -33,6 +34,8 @@ export default function Dashboard() {
     setAllMetrics(metrics)
     setUserProfile(profile)
     setLoading(false)
+    // Fire reminder notification if conditions are met
+    checkAndNotify(metrics)
   }, [navigate])
 
   const greeting = useMemo(() => {

@@ -8,6 +8,8 @@ interface SparkChartProps {
   label: string
   icon: string
   formatter?: (v: number) => string
+  avg?: string        // pre-formatted period average, e.g. "6.8h"
+  trend?: 'up' | 'down' | 'flat'
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,7 +31,21 @@ function CustomTooltip({ active, payload, label, formatter }: any) {
   )
 }
 
-export default function SparkChart({ data, field, color, label, icon, formatter }: SparkChartProps) {
+function TrendArrow({ trend, color }: { trend: 'up' | 'down' | 'flat'; color: string }) {
+  const trendColor = trend === 'up' ? '#30D158' : trend === 'down' ? '#FF453A' : 'rgba(255,255,255,0.25)'
+  const arrow = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'
+  return (
+    <span
+      className="text-[12px] font-bold px-1.5 py-0.5 rounded-lg ml-1"
+      style={{ color: trendColor, background: `${trendColor}18` }}
+      title={`Trend: ${trend}`}
+    >
+      {arrow}
+    </span>
+  )
+}
+
+export default function SparkChart({ data, field, color, label, icon, formatter, avg, trend }: SparkChartProps) {
   const chartData = data
     .filter((d) => d[field] !== undefined)
     .map((d) => ({
@@ -65,10 +81,16 @@ export default function SparkChart({ data, field, color, label, icon, formatter 
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">{icon}</span>
             <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">{label}</span>
+            {trend && <TrendArrow trend={trend} color={color} />}
           </div>
           <div className="text-[28px] font-bold text-white/92 leading-none">
             {formatter ? formatter(latest) : latest}
           </div>
+          {avg && (
+            <div className="text-[11px] text-white/35 mt-0.5">
+              avg {avg}
+            </div>
+          )}
         </div>
         <div
           className="text-[13px] font-bold px-2.5 py-1 rounded-xl"
@@ -92,10 +114,7 @@ export default function SparkChart({ data, field, color, label, icon, formatter 
             </linearGradient>
           </defs>
           <XAxis dataKey="date" hide />
-          <YAxis
-            domain={['auto', 'auto']}
-            hide
-          />
+          <YAxis domain={['auto', 'auto']} hide />
           <Tooltip content={<CustomTooltip formatter={formatter} />} />
           <Area
             type="monotone"
