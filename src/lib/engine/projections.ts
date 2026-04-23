@@ -75,17 +75,20 @@ function projectWeight(
     return { '7d': noData, '30d': noData, '90d': noData }
   }
 
+  // Narrowed to number — TypeScript loses the guard inside nested closures
+  const baseWeight: number = latestWeight
+
   const netKcalPerDay = avgCalsIn7 - tdee
   const kgPerWeek = weeklyWeightDelta(netKcalPerDay)
 
-  const w7  = latestWeight + kgPerWeek
-  const w30 = latestWeight + kgPerWeek * (30 / 7)
-  const w90 = latestWeight + kgPerWeek * (90 / 7)
+  const w7  = baseWeight + kgPerWeek
+  const w30 = baseWeight + kgPerWeek * (30 / 7)
+  const w90 = baseWeight + kgPerWeek * (90 / 7)
 
-  const fmt = (kg: number) => `${Math.abs(kg - latestWeight).toFixed(1)} kg`
-  const dir7  = w7  < latestWeight ? 'lose' : w7  > latestWeight ? 'gain' : 'maintain'
-  const dir30 = w30 < latestWeight ? 'lose' : w30 > latestWeight ? 'gain' : 'maintain'
-  const dir90 = w90 < latestWeight ? 'lose' : w90 > latestWeight ? 'gain' : 'maintain'
+  const fmt = (kg: number) => `${Math.abs(kg - baseWeight).toFixed(1)} kg`
+  const dir7  = w7  < baseWeight ? 'lose' : w7  > baseWeight ? 'gain' : 'maintain'
+  const dir30 = w30 < baseWeight ? 'lose' : w30 > baseWeight ? 'gain' : 'maintain'
+  const dir90 = w90 < baseWeight ? 'lose' : w90 > baseWeight ? 'gain' : 'maintain'
 
   function tone(dir: string, delta: number): ProjectionTone {
     const abs = Math.abs(delta)
@@ -98,12 +101,12 @@ function projectWeight(
   }
 
   function summary(dir: string, target: number, label: string): string {
-    if (dir === 'maintain') return `Weight stays stable around ${latestWeight.toFixed(1)} kg over ${label}.`
+    if (dir === 'maintain') return `Weight stays stable around ${baseWeight.toFixed(1)} kg over ${label}.`
     const delta = fmt(target)
     const verb = dir === 'lose' ? 'drop' : 'rise'
-    const qualifier = Math.abs(target - latestWeight) > 3 && dir === 'gain'
+    const qualifier = Math.abs(target - baseWeight) > 3 && dir === 'gain'
       ? ' — consider adjusting your intake'
-      : Math.abs(target - latestWeight) > 4 && dir === 'lose'
+      : Math.abs(target - baseWeight) > 4 && dir === 'lose'
       ? ' — this rate is faster than recommended'
       : ''
     return `On track to ${verb} ~${delta} over ${label}${qualifier}.`
