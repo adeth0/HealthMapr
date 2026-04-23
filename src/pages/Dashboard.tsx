@@ -5,9 +5,10 @@ import Nav from '@/components/Nav'
 import { InsightCard, InsightEmptyState } from '@/components/InsightCard'
 import StatStrip from '@/components/StatStrip'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import AIInsightsCard from '@/components/AIInsightsCard'
 import { generateInsights, computeHealthStats } from '@/lib/engine'
 import { getMetrics, getProfile, hasProfile, seedMockData } from '@/lib/storage'
-import type { InsightObject, HealthStats } from '@/lib/types'
+import type { InsightObject, HealthStats, DailyMetric, UserProfile } from '@/lib/types'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -15,6 +16,8 @@ export default function Dashboard() {
   const [stats, setStats] = useState<HealthStats | null>(null)
   const [profileName, setProfileName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [allMetrics, setAllMetrics] = useState<DailyMetric[]>([])
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     seedMockData()
@@ -27,6 +30,8 @@ export default function Dashboard() {
     setProfileName(profile.name)
     setInsights(generateInsights(metrics, profile))
     setStats(computeHealthStats(metrics, profile))
+    setAllMetrics(metrics)
+    setUserProfile(profile)
     setLoading(false)
   }, [navigate])
 
@@ -115,7 +120,23 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Quick log CTA when no recent data */}
+      {/* ── AI Analysis ── */}
+      {userProfile && allMetrics.length > 0 && (
+        <div className="px-5 mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-[18px] font-bold text-white/80">AI Analysis</h2>
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-widest"
+              style={{ background: 'rgba(191,90,242,0.12)', color: '#BF5AF2', border: '1px solid rgba(191,90,242,0.22)' }}
+            >
+              Powered by Claude
+            </span>
+          </div>
+          <AIInsightsCard metrics={allMetrics} profile={userProfile} />
+        </div>
+      )}
+
+      {/* Quick log CTA */}
       <div className="px-5 mt-6">
         <Link
           to="/log"
