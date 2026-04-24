@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import GradientMesh from '@/components/GradientMesh'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -46,7 +46,15 @@ function MagicLinkSent({ email }: { email: string }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Login() {
-  const { signInWithGoogle, signInWithMagicLink } = useAuth()
+  const { signInWithGoogle, signInWithMagicLink, user, loading } = useAuth()
+  const navigate = useNavigate()
+
+  // Already logged in → skip straight to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [user, loading, navigate])
 
   const [email, setEmail]           = useState('')
   const [emailSent, setEmailSent]   = useState(false)

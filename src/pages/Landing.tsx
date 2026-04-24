@@ -52,10 +52,18 @@ export default function Landing() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
 
-  // Logged-in users skip the landing page and go straight to the dashboard
+  // Logged-in users skip the landing page entirely
   useEffect(() => {
     if (!loading && user) {
-      navigate('/dashboard', { replace: true })
+      // Strava OAuth callback: ?state=strava_oauth lands here because HashRouter
+      // doesn't see the query string — redirect to /health-connect so the code
+      // gets processed by the handler there.
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('state') === 'strava_oauth') {
+        navigate('/health-connect', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     }
   }, [user, loading, navigate])
 
@@ -147,10 +155,10 @@ export default function Landing() {
         {/* CTAs */}
         <div className="flex flex-col xs:flex-row items-center gap-3 mb-16 animate-slide-up stagger-3">
           <Link
-            to="/dashboard"
+            to="/login"
             className="btn-primary px-8 py-4 text-[16px] font-bold rounded-2xl min-w-[180px]"
           >
-            Start for free
+            Sign in to experience
           </Link>
           <a
             href="#features"
@@ -325,13 +333,13 @@ export default function Landing() {
             Start mapping <span className="text-gradient">your health</span>
           </h2>
           <p className="text-[14px] text-white/50 mb-8 relative">
-            No account needed. No cloud. Just you and your data.
+            Sign in with Google or your email. Your data stays private and encrypted.
           </p>
           <Link
-            to="/dashboard"
+            to="/login"
             className="btn-primary inline-flex px-10 py-4 text-[16px] font-bold rounded-2xl relative"
           >
-            Get started free
+            Sign in / Create account
           </Link>
         </div>
       </section>

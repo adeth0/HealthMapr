@@ -24,17 +24,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Bootstrap: check for existing session (also processes OAuth hash tokens)
+    // Use ONLY onAuthStateChange — not getSession() — so that loading stays true
+    // until Supabase has fully processed the URL (OAuth hash tokens, magic links,
+    // PKCE codes). getSession() can resolve before detectSessionInUrl finishes,
+    // which would prematurely show the user as logged-out.
+    //
+    // onAuthStateChange fires INITIAL_SESSION after the full init (including URL
+    // token detection), so we only lower the loading flag then.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase.auth.getSession().then(({ data }: any) => {
-      setSession(data.session)
-      setLoading(false)
-    })
-
-    // Keep session in sync on every auth event
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
       setSession(session)
+      // INITIAL_SESSION fires once the client has finished bootstrapping.
+      // All other events (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED …) also
+      // lower the flag so subsequent auth changes are reflected instantly.
       setLoading(false)
     })
 
