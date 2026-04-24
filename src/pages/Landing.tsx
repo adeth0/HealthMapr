@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import GradientMesh from '@/components/GradientMesh'
+import { useAuth } from '@/contexts/AuthContext'
 
 const features = [
   {
@@ -47,6 +49,18 @@ const stats = [
 ]
 
 export default function Landing() {
+  const { user, loading } = useAuth()
+  const navigate = useNavigate()
+
+  // Logged-in users skip the landing page and go straight to the dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [user, loading, navigate])
+
+  if (loading) return null
+
   return (
     <div className="min-h-dvh relative overflow-x-hidden">
       <GradientMesh />

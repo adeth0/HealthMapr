@@ -12,12 +12,14 @@ import MilestoneToast from '@/components/MilestoneToast'
 import NextActionCard from '@/components/NextActionCard'
 import ProjectionCard from '@/components/ProjectionCard'
 import StreakBadge from '@/components/StreakBadge'
+import { useAuth } from '@/contexts/AuthContext'
 import { generateInsights, computeHealthStats } from '@/lib/engine'
 import { computeHealthScore } from '@/lib/engine/health-score'
 import { getNextAction } from '@/lib/engine/next-action'
 import { getProjections } from '@/lib/engine/projections'
 import { computeStreak } from '@/lib/streak'
-import { getMetrics, getProfile, hasProfile, seedMockData } from '@/lib/storage'
+import { getMetrics, getProfile } from '@/lib/storage'
+import { syncOnLogin } from '@/lib/supabase-data'
 import { checkAndNotify } from '@/lib/notifications'
 import type { InsightObject, HealthStats, DailyMetric, UserProfile } from '@/lib/types'
 import type { NextAction } from '@/lib/engine/next-action'
@@ -26,7 +28,8 @@ import type { ScoreBreakdown } from '@/lib/engine/health-score'
 import type { StreakData } from '@/lib/streak'
 
 export default function Dashboard() {
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
+  const { user, signOut } = useAuth()
   const [insights, setInsights] = useState<InsightObject[]>([])
   const [stats, setStats] = useState<HealthStats | null>(null)
   const [profileName, setProfileName] = useState('')
@@ -40,29 +43,50 @@ export default function Dashboard() {
   const [milestone, setMilestone] = useState<number | null>(null)
 
   useEffect(() => {
-    seedMockData()
-    if (!hasProfile()) {
-      navigate('/setup', { replace: true })
-      return
+    let cancelled = false
+
+    async function init() {
+      // 1. Sync from Supabase (populates localStorage cache)
+      if (user) {
+        const { profile: remoteProfile } = await syncOnLogin(user.id)
+
+        // New user — send to onboarding
+        if (!remoteProfile || !remoteProfile.setup_complete) {
+          if (!cancelled) navigate('/onboarding', { replace: true })
+          return
+        }
+      }
+
+      // 2. Read from localStorage cache (fast)
+      const profile = getProfile()
+      if (!profile) {
+        if (!cancelled) navigate('/onboarding', { replace: true })
+        return
+      }
+
+      const metrics = getMetrics()
+      const insights = generateInsights(metrics, profile)
+
+      if (cancelled) return
+
+      setProfileName(profile.name)
+      setInsights(insights)
+      setStats(computeHealthStats(metrics, profile))
+      setAllMetrics(metrics)
+      setUserProfile(profile)
+      setNextAction(getNextAction(insights, metrics, profile))
+      setProjection(getProjections(metrics, profile))
+      setScoreBreakdown(computeHealthScore(metrics, profile))
+      const streakData = computeStreak(metrics)
+      setStreak(streakData)
+      if (streakData.milestoneReached) setMilestone(streakData.milestoneReached)
+      setLoading(false)
+      checkAndNotify(metrics)
     }
-    const profile = getProfile()!
-    const metrics = getMetrics()
-    const insights = generateInsights(metrics, profile)
-    setProfileName(profile.name)
-    setInsights(insights)
-    setStats(computeHealthStats(metrics, profile))
-    setAllMetrics(metrics)
-    setUserProfile(profile)
-    setNextAction(getNextAction(insights, metrics, profile))
-    setProjection(getProjections(metrics, profile))
-    setScoreBreakdown(computeHealthScore(metrics, profile))
-    const streakData = computeStreak(metrics)
-    setStreak(streakData)
-    if (streakData.milestoneReached) setMilestone(streakData.milestoneReached)
-    setLoading(false)
-    // Fire reminder notification if conditions are met
-    checkAndNotify(metrics)
-  }, [navigate])
+
+    init()
+    return () => { cancelled = true }
+  }, [user, navigate])
 
   const greeting = useMemo(() => {
     const h = new Date().getHours()
@@ -108,20 +132,37 @@ export default function Dashboard() {
               </h1>
             </div>
           </div>
-          <Link
-            to="/profile"
-            className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 mt-1"
-            style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.10)',
-              borderTop: '1px solid rgba(255,255,255,0.16)',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="6" r="3" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
-              <path d="M2 16c0-3.5 3-5 7-5s7 1.5 7 5" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </Link>
+          <div className="flex items-center gap-2 mt-1">
+            <Link
+              to="/profile"
+              className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                borderTop: '1px solid rgba(255,255,255,0.16)',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="6" r="3" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
+                <path d="M2 16c0-3.5 3-5 7-5s7 1.5 7 5" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </Link>
+            <button
+              onClick={() => signOut().then(() => navigate('/', { replace: true }))}
+              className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active-press"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+              }}
+              title="Sign out"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M10 11l3-3-3-3" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M13 8H6" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Stat Strip */}

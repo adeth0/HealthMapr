@@ -25,6 +25,7 @@ export interface UserProfile {
   goal?: HealthGoal
   reminder_enabled?: boolean
   reminder_time?: string       // HH:MM, e.g. "20:00"
+  setup_complete?: boolean     // false = onboarding not finished
   created_at: string
   updated_at: string
 }

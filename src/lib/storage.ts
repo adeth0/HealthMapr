@@ -110,6 +110,29 @@ export function hasProfile(): boolean {
   return getProfile() !== null
 }
 
+// ── Internal helpers (used by supabase-data.ts to populate the local cache) ───
+
+export function readLocalProfile(): UserProfile | null {
+  return readStore().profile
+}
+
+export function writeLocalProfile(profile: UserProfile): void {
+  const store = readStore()
+  store.profile = profile
+  writeStore(store)
+}
+
+export function readLocalMetrics(): DailyMetric[] {
+  return getMetrics()
+}
+
+export function writeLocalMetric(metric: DailyMetric): void {
+  const store = readStore()
+  const existing = store.metrics[metric.date] ?? {}
+  store.metrics[metric.date] = { ...existing, ...metric }
+  writeStore(store)
+}
+
 // ── Mock Data Seeder ──────────────────────────────────────────────────────────
 
 export function seedMockData(): void {
