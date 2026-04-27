@@ -46,12 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   const signInWithGoogle = async () => {
-    // redirectTo must be the origin — Supabase appends #access_token=... to it
-    const redirectTo = window.location.origin
+    // With PKCE flow, Supabase redirects back as ?code=xxx (query param, not hash).
+    // HashRouter only reads the hash, so the code is safe from route clobbering.
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo,
+        redirectTo: window.location.origin,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -61,6 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithMagicLink = async (email: string): Promise<{ error?: string }> => {
+    // emailRedirectTo: Supabase verifies the magic link server-side, then
+    // redirects here with ?code=xxx (PKCE) — never touches the hash.
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {

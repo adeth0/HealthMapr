@@ -11,6 +11,11 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // picks up access_token from URL hash after OAuth redirect
+    detectSessionInUrl: true,
+    // PKCE flow: redirects arrive as ?code=xxx in the query string rather than
+    // #access_token=xxx in the URL fragment.  HashRouter only looks at the hash,
+    // so query-string params are never touched by the router — the code survives
+    // long enough for Supabase to exchange it for a session.
+    flowType: 'pkce',
   },
 })
